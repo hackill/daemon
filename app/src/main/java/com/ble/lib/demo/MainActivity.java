@@ -3,7 +3,6 @@ package com.ble.lib.demo;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 
-import com.ble.lib.R;
 
 public class MainActivity extends AppCompatActivity {
 
