@@ -42,4 +42,13 @@
         android:text="连接状态：Not connected"
         android:textSize="14dp" />
 
+
+    <Button
+        android:id="@+id/btn_cmd"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="30dp"
+        android:text="执行命令（需要看代码+log）" />
+
+
 </LinearLayout>
