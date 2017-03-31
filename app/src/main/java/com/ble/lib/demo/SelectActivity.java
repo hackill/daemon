@@ -47,9 +47,9 @@ public class SelectActivity extends AppCompatActivity {
         initView();
 
 
-        mBleScanner = new BleScanner();
+        mBleScanner = new BleScanner(this.getApplicationContext());
 
-        mBleScanner.filter("bong3HR", "b3HR");
+//        mBleScanner.filter("bong3HR");
 
         mBleScanner.startLeScan(this, new BleScanCallback() {
             @Override

@@ -18,7 +18,6 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.ble.lib.utils.BleConstants;
 import com.ble.lib.utils.BleUtil;
 
 import java.lang.reflect.Method;
@@ -778,7 +777,7 @@ public abstract class BaseBleController {
         if (mState != state) {
             mState = state;
 
-            Intent intent = new Intent(BleConstants.BLE_STATE_CHANGE);
+            Intent intent = new Intent(GattState.BLE_STATE_CHANGE);
             intent.putExtra("address", mAddress);
             switch (state) {
                 case CONNECTING:

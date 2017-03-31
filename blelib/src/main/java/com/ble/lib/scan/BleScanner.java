@@ -3,6 +3,8 @@ package com.ble.lib.scan;
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
@@ -14,6 +16,8 @@ import android.text.TextUtils;
 
 import com.ble.lib.BlePermission;
 import com.ble.lib.utils.BleUtil;
+
+import java.util.List;
 
 
 /**
@@ -38,6 +42,13 @@ public class BleScanner {
         mBleFilter = bleName;
     }
 
+
+    private Context mContext;
+
+    public BleScanner(Context context) {
+        this.mContext = context;
+
+    }
 
     /**
      * 线程不安全
@@ -65,6 +76,10 @@ public class BleScanner {
             return;
         }
 
+        /**
+         * 把已经连接的设备 通知出去 这类设备直接扫描不到
+         */
+        getDeviceConnected();
 
         mCallback = callback;
 
@@ -124,6 +139,17 @@ public class BleScanner {
                 }
             }
         }
+    }
+
+    private void getDeviceConnected() {
+        BluetoothManager bluetoothManager = (BluetoothManager) mContext.getSystemService(Context.BLUETOOTH_SERVICE);
+
+        List<BluetoothDevice> connectedDevices = bluetoothManager.getConnectedDevices(BluetoothProfile.GATT);
+
+        for (BluetoothDevice device : connectedDevices) {
+            callback(device, -1, null);
+        }
+
     }
 
     public void stopLeScan() {

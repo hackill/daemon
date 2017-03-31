@@ -1,7 +1,11 @@
 package com.ble.lib.demo;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Bundle;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
 import android.view.View;
@@ -10,6 +14,7 @@ import android.widget.Toast;
 
 import com.ble.lib.BLEInitCallback;
 import com.ble.lib.BleManager;
+import com.ble.lib.GattState;
 import com.ble.lib.x.XBleManager;
 
 
@@ -34,6 +39,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         findViewById(R.id.btn_connect).setOnClickListener(this);
         findViewById(R.id.btn_disconnect).setOnClickListener(this);
 
+        LocalBroadcastManager.getInstance(this).registerReceiver(mBleStateReceiver, new IntentFilter(GattState.BLE_STATE_CHANGE));
+
     }
 
     @Override
@@ -47,20 +54,35 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 break;
             case R.id.btn_connect:
                 if (!TextUtils.isEmpty(mCurMac)) {
-
+                    connect();
                 } else {
                     showToast("先选择设备");
                 }
                 break;
             case R.id.btn_disconnect:
                 if (!TextUtils.isEmpty(mCurMac)) {
-
+                    disconnect();
                 } else {
                     showToast("先选择设备");
                 }
                 break;
         }
     }
+
+    /**
+     * 连接状态会以广播的形式通知出来
+     * 蓝牙连接state
+     */
+    private BroadcastReceiver mBleStateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String state = intent.getStringExtra("state");
+            mStatusTextView.setText("连接状态：" + state);
+            if (TextUtils.equals(state, "CONNECTED")) {
+                showToast("连接成功");
+            }
+        }
+    };
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -76,7 +98,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
 
-    private void connext() {
+    private void connect() {
 
 
         /**
@@ -88,7 +110,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mBleManager.connect(mCurMac, new BLEInitCallback() {
             @Override
             public void onSuccess() {
-                showToast("连接成功");
+
             }
 
             @Override
@@ -116,6 +138,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             mBleManager.quit();
             mBleManager = null;
         }
+
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(mBleStateReceiver);
 
     }
 }
