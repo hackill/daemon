@@ -76,12 +76,12 @@ public class BleScanner {
             return;
         }
 
+        mCallback = callback;
+
         /**
          * 把已经连接的设备 通知出去 这类设备直接扫描不到
          */
         getDeviceConnected();
-
-        mCallback = callback;
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             BluetoothLeScanner bluetoothLeScanner = defaultAdapter.getBluetoothLeScanner();
