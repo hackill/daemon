@@ -58,9 +58,8 @@ public interface BleManager {
     void cancelAll();
 
     /**
-     * 退出
+     * 退出 并释放队列
      */
-    @Deprecated
     void quit();
 
 

@@ -67,7 +67,6 @@ public class XBleManager implements BleManager {
         try {
             BluetoothAdapter mAdapter = BluetoothAdapter.getDefaultAdapter();
             if (mAdapter == null || !mAdapter.isEnabled()) {
-//                ToastUtil.showToast(R.string.ble_enable);
                 request.deliverError(new BleExecuteException("not open bluetooth"));
                 return;
             }
@@ -95,7 +94,6 @@ public class XBleManager implements BleManager {
 
     @Override
     public void cancel(String tag) {
-        // TODO: 1/26/16 not finished
     }
 
     @Override
@@ -107,9 +105,6 @@ public class XBleManager implements BleManager {
     public void quit() {
         if (mController != null)
             mController.quit();
-//
-//        mController = null;
-//        mWorkerThread = null;
     }
 
     @Override

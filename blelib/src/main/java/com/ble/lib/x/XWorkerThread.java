@@ -327,7 +327,6 @@ public class XWorkerThread extends Thread {
     }
 
     public void quit() {
-        // TODO: 1/18/16 finish this method
         isRun = false;
         interrupt();
     }
