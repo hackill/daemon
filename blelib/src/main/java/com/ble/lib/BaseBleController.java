@@ -115,7 +115,6 @@ public abstract class BaseBleController {
             Log.d(TAG, "already in Initialising");
             return;
         }
-//        mState = STATE.CONNECTING;
         setBleState(STATE.CONNECTING);
 
         Log.d(TAG, "connectToDevice " + mState);
@@ -186,10 +185,7 @@ public abstract class BaseBleController {
 
         onConnectionError(ERROR_BLUETOOTH_CONNECTION_BREAK);
 
-        refresh();
-
         close();
-
     }
 
 
@@ -343,7 +339,6 @@ public abstract class BaseBleController {
 
     private void onConnectionError(final int error) {
         mHandler.removeCallbacks(mConnectTimeout);
-//        mState = STATE.CONNECTION_BREAK;
         setBleState(STATE.CONNECTION_BREAK);
 
         if (!mErrorCommitted.getAndSet(true))
@@ -389,6 +384,7 @@ public abstract class BaseBleController {
      */
     public boolean refresh() {
         try {
+            Log.d(TAG, "refresh() called");
             BluetoothGatt bluetoothGatt = mBluetoothGatt;
             bluetoothGatt.readRemoteRssi();
             Method localMethod = bluetoothGatt.getClass().getMethod("refresh", new Class[0]);
@@ -416,7 +412,6 @@ public abstract class BaseBleController {
             mAdapter.stopLeScan(mScanCallback);
         }
 
-//        mState = STATE.DISCONNECTING;
         setBleState(STATE.DISCONNECTING);
 
         isConnecting.set(false);
@@ -429,6 +424,8 @@ public abstract class BaseBleController {
         }
         Log.e(TAG, "disconnect bluetooth gatt mAddress = " + mAddress);
         gatt.disconnect();
+
+        refresh();
     }
 
 
@@ -497,47 +494,39 @@ public abstract class BaseBleController {
         @Override
         public void onConnectionStateChange(final BluetoothGatt gatt, int status, int newState) {
             Log.i(TAG, "onConnectionStateChange() called with: status = [" + status + "], newState = [" + newState + "]");
+
+            if (gatt == null) {
+                disconnect();
+                onConnectionError(ERROR_BLUETOOTH_CONNECTION_BREAK);
+                return;
+            }
+
             if (newState == BluetoothGatt.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
 
                 if (mState != STATE.CONNECTING) {
                     return;
                 }
-
                 Log.d(TAG, "connected timeStamp:" + (System.currentTimeMillis() - mTimeStamp));
                 mHandler.postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        // Some proximity tags (e.g. nRF PROXIMITY) initialize bonding automatically when connected.
-//                        if (gatt.getDevice().getBondState() != BluetoothDevice.BOND_BONDING) {
                         Log.d(TAG, "gatt.discoverServices()");
                         gatt.discoverServices();
-//                        }
                     }
-                }, 600);
+                }, 1000);
             } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
-
                 Log.e(TAG, "onConnectionStateChange() called with: status = [" + status + "(" + GattError.parseConnectionError(status) + ")], newState = [" + newState + "]");
-
-//                mState = STATE.CONNECTION_BREAK;
-                setBleState(STATE.CONNECTION_BREAK);
-
-                if (gatt == null) {
-                    Log.e(TAG, "close gatt null");
-                    return;
+                if(isConnecting.get()){
+                    disconnect();
                 }
-
-//                Log.d(TAG, "close refresh device");
-//                refreshDevice(gatt);
-
                 onConnectionError(ERROR_BLUETOOTH_CONNECTION_BREAK);
-
             } else {
                 Log.i(TAG, "onConnectionStateChange() called with: status = [" + status + "(" + GattError.parseConnectionError(status) + ")], newState = [" + newState + "]");
-                //其他情况全部close
+                if(isConnecting.get()){
+                    disconnect();
+                }
                 onConnectionError(ERROR_BLUETOOTH_SERVICE_UNKNOW);
             }
-
-
         }
 
         @Override
@@ -559,17 +548,9 @@ public abstract class BaseBleController {
                     disconnect();
                     onConnectionError(ERROR_BLUETOOTH_DEVICE_PROPERTY_MISS);
                 } else {
-//                    if ((mWrite.getProperties() & (BluetoothGattCharacteristic.PROPERTY_WRITE | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)) == 0) {
-//
-//                        Log.e(TAG, "write characteristic don't has PROPERTY_WRITE_NO_RESPONSE");
-//                        disconnect();
-//                        onConnectionError(ERROR_BLUETOOTH_DEVICE_PROPERTY_MISS);
-//
-//                    } else {
                     if (!enableNotifications(notify)) {
                         onConnectionError(ERROR_BLUETOOTH_INIT_FAILURE);
                     }
-//                    }
                 }
             }
 
@@ -643,7 +624,6 @@ public abstract class BaseBleController {
 
         mHandler.removeCallbacks(mConnectTimeout);
 
-//        mState = STATE.CONNECTED;
         setBleState(STATE.CONNECTED);
 
         mSemaphore.release();
@@ -667,7 +647,7 @@ public abstract class BaseBleController {
         if (gatt == null || characteristic == null)
             return false;
 
-// Check characteristic property
+        // Check characteristic property
         final int properties = characteristic.getProperties();
         if ((properties & BluetoothGattCharacteristic.PROPERTY_NOTIFY) == 0)
             return false;
@@ -700,7 +680,7 @@ public abstract class BaseBleController {
         });
     }
 
-    public static enum STATE {
+    public enum STATE {
         CONNECTED,
         CONNECTING,
         CONNECTION_BREAK,
@@ -794,11 +774,8 @@ public abstract class BaseBleController {
                     break;
             }
 
-
             mLocalBroadcastManager.sendBroadcast(intent);
-
         }
-
 
     }
 }

@@ -33,7 +33,6 @@ public class XWorkerThread extends Thread {
 
     private static final byte[] mSuccessBytes = new byte[]{0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73};
     private static final byte[] mEndBytes = new byte[]{0x65, 0x6E, 0x64};
-    private static final byte[] mSyncBytes = new byte[]{0x20, 0x00, 0x00, 0x00, 0x13};
 
     private boolean isLastCommandSuccess = false;
 
@@ -244,42 +243,11 @@ public class XWorkerThread extends Thread {
     public boolean addRequest(XRequest request) {
         Log.d(TAG, "addRequest() called with: " + "request = [" + request + "], size = " + mRequestQueue.size());
         try {
-
-            if (request.isErrorHasSync()) {
-                // 检测之前有没有同步数据命令
-                for (XRequest r : mRequestQueue) {
-                    if (isSyncCommand(r.getCommand()[0])) {
-                        request.deliverError(new XHasSportSyncException("has sport sync before this mRequest"));
-                        return true;
-                    }
-                }
-                //检测当前是否是同步命令数据
-                XRequest r = mRequest;
-                if (r != null && isSyncCommand(r.getCommand()[0])) {
-                    request.deliverError(new XHasSportSyncException("has sport sync before this mRequest"));
-                    return true;
-                }
-            }
-
-
             return mRequestQueue.add(request);
         } catch (Exception e) {
             Log.e(TAG, "addRequest ", e);
             return false;
         }
-    }
-
-
-    private boolean isSyncCommand(byte[] command) {
-        if (command.length < mSyncBytes.length)
-            return false;
-        for (int i = 0; i < mSyncBytes.length; i++) {
-            if (command[i] != mSyncBytes[i]) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /**
