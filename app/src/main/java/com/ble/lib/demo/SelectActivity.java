@@ -9,6 +9,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
+import android.view.View;
 import android.widget.Toast;
 
 import com.ble.lib.scan.BleDevice;
@@ -46,43 +47,9 @@ public class SelectActivity extends AppCompatActivity {
 
         initView();
 
-
         mBleScanner = new BleScanner(this.getApplicationContext());
-
 //        mBleScanner.filter("bong3HR");
 
-        mBleScanner.startLeScan(this, new BleScanCallback() {
-            @Override
-            public void onScanResult(BleDevice device) {
-                mBleDeviceHashSet.add(device);
-            }
-
-            @Override
-            public void onError(Exception e) {
-
-                showToast("请检查蓝牙是否打开");
-
-                Log.e(TAG, "onError: ", e);
-            }
-        });
-
-        mHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                BleDevice[] bleDevices = new BleDevice[mBleDeviceHashSet.size()];
-                bleDevices = mBleDeviceHashSet.toArray(bleDevices);
-                Arrays.sort(bleDevices, new Comparator<BleDevice>() {
-                    @Override
-                    public int compare(BleDevice o1, BleDevice o2) {
-                        return -o1.rssi + o2.rssi;
-                    }
-                });
-
-                mSelectAdapter.setBleDevices(bleDevices);
-
-                mHandler.postDelayed(this, 1000);
-            }
-        }, 500);
     }
 
 
@@ -114,5 +81,50 @@ public class SelectActivity extends AppCompatActivity {
 
     private void showToast(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+    }
+
+    public void startScan(View v) {
+
+        mBleScanner.startLeScan(SelectActivity.this, new BleScanCallback() {
+            @Override
+            public void onScanResult(BleDevice device) {
+                mBleDeviceHashSet.add(device);
+            }
+
+            @Override
+            public void onError(Exception e) {
+                showToast("请检查蓝牙是否打开");
+                Log.e(TAG, "onError: ", e);
+            }
+        });
+
+
+        mHandler.removeCallbacksAndMessages(null);
+
+        mHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                BleDevice[] bleDevices = new BleDevice[mBleDeviceHashSet.size()];
+                bleDevices = mBleDeviceHashSet.toArray(bleDevices);
+                Arrays.sort(bleDevices, new Comparator<BleDevice>() {
+                    @Override
+                    public int compare(BleDevice o1, BleDevice o2) {
+                        return -o1.rssi + o2.rssi;
+                    }
+                });
+
+                mSelectAdapter.setBleDevices(bleDevices);
+
+                mHandler.postDelayed(this, 1000);
+            }
+        }, 500);
+
+    }
+
+    public void stopScan(View v) {
+        if (mBleScanner != null) {
+            mBleScanner.stopLeScan();
+        }
+        mHandler.removeCallbacksAndMessages(null);
     }
 }

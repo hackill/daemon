@@ -84,7 +84,13 @@ public class BleScanner {
         getDeviceConnected();
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+
             BluetoothLeScanner bluetoothLeScanner = defaultAdapter.getBluetoothLeScanner();
+
+            if (mScanCallback != null) {
+                bluetoothLeScanner.stopScan(mScanCallback);
+                mScanCallback = null;
+            }
 
             mScanCallback = new ScanCallback() {
                 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
@@ -100,9 +106,13 @@ public class BleScanner {
                     }
                 }
             };
-
             bluetoothLeScanner.startScan(mScanCallback);
         } else {
+            if (mLeScanCallback != null) {
+                defaultAdapter.stopLeScan(mLeScanCallback);
+                mLeScanCallback = null;
+            }
+
             mLeScanCallback = new BluetoothAdapter.LeScanCallback() {
                 @Override
                 public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
@@ -155,16 +165,21 @@ public class BleScanner {
     public void stopLeScan() {
 
         BluetoothAdapter defaultAdapter = BluetoothAdapter.getDefaultAdapter();
+
         if (defaultAdapter == null) return;
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            BluetoothLeScanner bluetoothLeScanner = defaultAdapter.getBluetoothLeScanner();
-
-            if (bluetoothLeScanner != null)
-                bluetoothLeScanner.stopScan(mScanCallback);
-
+            if (mScanCallback != null) {
+                BluetoothLeScanner bluetoothLeScanner = defaultAdapter.getBluetoothLeScanner();
+                if (bluetoothLeScanner != null)
+                    bluetoothLeScanner.stopScan(mScanCallback);
+                mScanCallback = null;
+            }
         } else {
-            defaultAdapter.stopLeScan(mLeScanCallback);
+            if (mLeScanCallback != null) {
+                defaultAdapter.stopLeScan(mLeScanCallback);
+                mLeScanCallback = null;
+            }
         }
 
 
