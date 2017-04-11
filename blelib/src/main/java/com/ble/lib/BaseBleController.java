@@ -18,8 +18,6 @@ import android.support.v4.content.LocalBroadcastManager;
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.ble.lib.utils.BleUtil;
-
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +50,6 @@ public abstract class BaseBleController {
 
     private Context mAppContext;
     private final AtomicBoolean mFoundDevice = new AtomicBoolean(false);
-    private final AtomicBoolean mFoundDFUDevice = new AtomicBoolean(false);
 
     private BluetoothDevice mDevice;
 
@@ -94,11 +91,7 @@ public abstract class BaseBleController {
         public void run() {
             mAdapter.stopLeScan(mScanCallback);
 
-            if (mFoundDFUDevice.get()) {
-                onConnectionError(ERROR_FOUND_DFU_DEVICE);
-            } else {
-                connectAfterScanTimeout();
-            }
+            connectAfterScanTimeout();
         }
     };
 
@@ -168,7 +161,6 @@ public abstract class BaseBleController {
                 @Override
                 public void run() {
                     mFoundDevice.set(false);
-                    mFoundDFUDevice.set(false);
                     mAdapter.startLeScan(mScanCallback);
                 }
             });
@@ -228,11 +220,6 @@ public abstract class BaseBleController {
 
                     initGatt(device);
                 }
-            }
-
-            if (!mFoundDFUDevice.get() && TextUtils.equals(device.getAddress(), BleUtil.addMacOne(mAddress))) {
-                Log.e(TAG, "onLeScan: find dfu device: " + BleUtil.addMacOne(mAddress));
-                mFoundDFUDevice.set(true);
             }
         }
     };
@@ -367,7 +354,6 @@ public abstract class BaseBleController {
 
         mBluetoothGatt = null;
         mWrite = null;
-
     }
 
 
@@ -516,13 +502,13 @@ public abstract class BaseBleController {
                 }, 1000);
             } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
                 Log.e(TAG, "onConnectionStateChange() called with: status = [" + status + "(" + GattError.parseConnectionError(status) + ")], newState = [" + newState + "]");
-                if(isConnecting.get()){
+                if (isConnecting.get()) {
                     disconnect();
                 }
                 onConnectionError(ERROR_BLUETOOTH_CONNECTION_BREAK);
             } else {
                 Log.i(TAG, "onConnectionStateChange() called with: status = [" + status + "(" + GattError.parseConnectionError(status) + ")], newState = [" + newState + "]");
-                if(isConnecting.get()){
+                if (isConnecting.get()) {
                     disconnect();
                 }
                 onConnectionError(ERROR_BLUETOOTH_SERVICE_UNKNOW);
