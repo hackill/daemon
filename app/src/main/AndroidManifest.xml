@@ -22,6 +22,15 @@
             </intent-filter>
         </activity>
         <activity android:name=".SelectActivity" />
+
+        <service
+            android:name=".daemon.DaemonService"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <service
+            android:name=".daemon.RunningService"
+            android:exported="false" />
+
     </application>
 
 </manifest>

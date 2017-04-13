@@ -1,6 +1,9 @@
 package com.ble.lib.demo;
 
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -16,6 +19,7 @@ import android.widget.Toast;
 import com.ble.lib.BLEInitCallback;
 import com.ble.lib.BleManager;
 import com.ble.lib.GattState;
+import com.ble.lib.demo.daemon.DaemonService;
 import com.ble.lib.x.BongHexUtils;
 import com.ble.lib.x.BongUtil;
 import com.ble.lib.x.XBleManager;
@@ -53,6 +57,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         findViewById(R.id.btn_connect).setOnClickListener(this);
         findViewById(R.id.btn_disconnect).setOnClickListener(this);
         findViewById(R.id.btn_cmd).setOnClickListener(this);
+        findViewById(R.id.btn_start_daemon).setOnClickListener(this);
+        findViewById(R.id.btn_stop_daemon).setOnClickListener(this);
 
         LocalBroadcastManager.getInstance(this).registerReceiver(mBleStateReceiver, new IntentFilter(GattState.BLE_STATE_CHANGE));
 
@@ -84,6 +90,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
             case R.id.btn_cmd:
 //                cmdDemo();
+                break;
+            case R.id.btn_start_daemon:
+                startDaemon();
+                break;
+            case R.id.btn_stop_daemon:
+                stopDaemon();
                 break;
         }
     }
@@ -255,4 +267,59 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mBleStateReceiver);
 
     }
+
+
+    /**
+     * 开始保活
+     * sdk int >= 21 即 android 5.0
+     */
+    private void startDaemon() {
+
+        Log.i(TAG, "startDaemon: android.os.Build.VERSION.SDK_INT = " + android.os.Build.VERSION.SDK_INT);
+
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.LOLLIPOP) {
+            return;
+        }
+
+        JobScheduler jobScheduler = (JobScheduler) getSystemService(Context.JOB_SCHEDULER_SERVICE);
+
+        List<JobInfo> allPendingJobs = jobScheduler.getAllPendingJobs();
+
+        boolean hasJob = false;
+
+        Log.i(TAG, "startDaemon: allPendingJobs = " + allPendingJobs);
+
+        for (JobInfo ji : allPendingJobs) {
+            Log.i(TAG, "startDaemon: ji = " + ji.getId());
+            if (ji.getId() == DaemonService.JOB_ID) {
+                hasJob = true;
+            }
+        }
+
+
+        if (!hasJob) {
+            JobInfo.Builder builder = new JobInfo.Builder(DaemonService.JOB_ID, new ComponentName(getPackageName(), DaemonService.class.getName()));
+            long l = TimeUnit.SECONDS.toMillis(5);
+            // 5秒钟检查一次
+            builder.setPeriodic(l);
+            builder.setPersisted(false);
+
+            int schedule = jobScheduler.schedule(builder.build());
+
+            Log.d(TAG, "startDaemon: " + schedule);
+        } else {
+            Log.d(TAG, "startDaemon: job already start");
+        }
+    }
+
+    private void stopDaemon() {
+        //
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            JobScheduler jobScheduler = (JobScheduler) getApplication().getSystemService(Context.JOB_SCHEDULER_SERVICE);
+            Log.i(TAG, "stopDaemon: cancel all ");
+            jobScheduler.cancelAll();
+        }
+
+    }
+
 }

@@ -51,4 +51,18 @@
         android:text="执行命令（需要看代码+log）" />
 
 
+    <Button
+        android:id="@+id/btn_start_daemon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="30dp"
+        android:text="开始保活任务" />
+
+
+    <Button
+        android:id="@+id/btn_stop_daemon"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="结束保活任务" />
 </LinearLayout>
