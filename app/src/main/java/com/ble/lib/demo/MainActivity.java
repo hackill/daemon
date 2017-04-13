@@ -17,6 +17,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.ble.lib.BLEInitCallback;
+import com.ble.lib.BLEScanInitCallback;
 import com.ble.lib.BleManager;
 import com.ble.lib.GattState;
 import com.ble.lib.demo.daemon.DaemonService;
@@ -30,6 +31,8 @@ import com.ble.lib.x.request.XReadResponse;
 import com.ble.lib.x.request.XResponse;
 import com.ble.lib.x.request.XWriteRequest;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -39,7 +42,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private static final String TAG = "MainActivity";
 
-    private String mCurMac = "E4:FE:C6:1A:11:48";
+    private String mCurMac = "C3:0A:09:97:BD:CD";
     private TextView mMacTextView, mStatusTextView;
 
     private BleManager mBleManager;
@@ -55,10 +58,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         findViewById(R.id.btn_select).setOnClickListener(this);
         findViewById(R.id.btn_connect).setOnClickListener(this);
+        findViewById(R.id.btn_connect2).setOnClickListener(this);
         findViewById(R.id.btn_disconnect).setOnClickListener(this);
         findViewById(R.id.btn_cmd).setOnClickListener(this);
         findViewById(R.id.btn_start_daemon).setOnClickListener(this);
         findViewById(R.id.btn_stop_daemon).setOnClickListener(this);
+
+        mMacTextView.setText("当前设备：" + mCurMac);
 
         LocalBroadcastManager.getInstance(this).registerReceiver(mBleStateReceiver, new IntentFilter(GattState.BLE_STATE_CHANGE));
 
@@ -76,6 +82,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             case R.id.btn_connect:
                 if (!TextUtils.isEmpty(mCurMac)) {
                     connect();
+                } else {
+                    showToast("先选择设备");
+                }
+                break;
+            case R.id.btn_connect2:
+                if (!TextUtils.isEmpty(mCurMac)) {
+                    connect2();
                 } else {
                     showToast("先选择设备");
                 }
@@ -146,6 +159,41 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
             @Override
             public boolean onFailure(int error) {
+                return false;
+            }
+        });
+
+    }
+
+
+
+    private void connect2() {
+
+
+        /**
+         * bleManager最好使用单例模式
+         */
+        if (mBleManager == null)
+            mBleManager = new XBleManager(this.getApplication());
+
+        
+        List<String> addressList = new ArrayList<>(Arrays.asList("C3:0A:09:97:BD:CD","C3:0A:09:97:BD:CD"));
+        
+        mBleManager.connect(addressList, new BLEScanInitCallback() {
+
+            @Override
+            public void onScanTimeOut() {
+                Log.i(TAG, "onScanTimeOut: .....");
+            }
+
+            @Override
+            public void onSuccess() {
+                Log.i(TAG, "onSuccess: ...");
+            }
+
+            @Override
+            public boolean onFailure(int error) {
+                Log.i(TAG, "onFailure: ....");
                 return false;
             }
         });

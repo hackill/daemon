@@ -1,5 +1,7 @@
 package com.ble.lib;
 
+import java.util.List;
+
 /**
  * @author hackill
  */
@@ -11,6 +13,17 @@ public interface BleManager {
      * @param callback
      */
     void connect(String address, BLEInitCallback callback);
+
+
+    /**
+     * 扫描连接蓝牙
+     * <p>
+     * 扫描到哪个优先连接哪个
+     *
+     * @param addressList
+     * @param callback
+     */
+    void connect(List<String> addressList, BLEScanInitCallback callback);
 
     /**
      * 释放蓝牙

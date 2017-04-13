@@ -10,6 +10,8 @@ import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.content.Context;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.RequiresApi;
 import android.text.TextUtils;
@@ -35,13 +37,16 @@ public class BleScanner {
 
     private String[] mBleFilter;
 
+    private List<String> mAddressList;
+
+    private Handler mHandler = new Handler(Looper.getMainLooper());
+
     /**
      * @param bleName
      */
     public void filter(String... bleName) {
         mBleFilter = bleName;
     }
-
 
     private Context mContext;
 
@@ -78,11 +83,6 @@ public class BleScanner {
 
         mCallback = callback;
 
-        /**
-         * 把已经连接的设备 通知出去 这类设备直接扫描不到
-         */
-        getDeviceConnected();
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
 
             BluetoothLeScanner bluetoothLeScanner = defaultAdapter.getBluetoothLeScanner();
@@ -113,6 +113,7 @@ public class BleScanner {
                 mLeScanCallback = null;
             }
 
+
             mLeScanCallback = new BluetoothAdapter.LeScanCallback() {
                 @Override
                 public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
@@ -120,14 +121,34 @@ public class BleScanner {
                 }
             };
 
+
             defaultAdapter.startLeScan(mLeScanCallback);
         }
+
+        /**
+         * 把已经连接的设备 通知出去 这类设备直接扫描不到
+         */
+        getDeviceConnected();
+    }
+
+
+    public void scanDeviceByAddress(List<String> address, long scanTime, final BleScanTimeCallback bleScanCallback) {
+
+        this.mAddressList = address;
+        startLeScan(mContext, bleScanCallback);
+
+        mHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                stopLeScan();
+                bleScanCallback.onScanTimeOut();
+            }
+        }, scanTime);
     }
 
     private synchronized void callback(BluetoothDevice device, int rssi, byte[] scanRecord) {
         BleDevice d = new BleDevice();
         d.mac = device.getAddress();
-
         d.name = device.getName();
 
         if (TextUtils.isEmpty(d.name) && scanRecord != null) {
@@ -136,33 +157,55 @@ public class BleScanner {
 
         d.rssi = rssi;
 
+        onResultCallBack(d);
+    }
+
+    private void onResultCallBack(final BleDevice device) {
+
+        if (mCallback instanceof BleScanTimeCallback) {
+            //时间回调
+            for (String address : mAddressList) {
+                if (TextUtils.equals(address, device.mac)) {
+                    stopLeScan();
+                    mCallback.onScanResult(device);
+                    break;
+                }
+            }
+        } else {
+            onNormalCallBack(device);
+        }
+    }
+
+    private void onNormalCallBack(BleDevice device) {
         // 过滤 filter
         if (mBleFilter == null || mBleFilter.length == 0) {
-            mCallback.onScanResult(d);
+            mCallback.onScanResult(device);
         } else {
-            synchronized (this) {
-                for (String bleName : mBleFilter) {
-                    if (TextUtils.equals(bleName, d.name)) {
-                        mCallback.onScanResult(d);
-                        break;
-                    }
+            for (String bleName : mBleFilter) {
+                if (TextUtils.equals(bleName, device.name)) {
+                    mCallback.onScanResult(device);
+                    break;
                 }
             }
         }
     }
+
 
     private void getDeviceConnected() {
         BluetoothManager bluetoothManager = (BluetoothManager) mContext.getSystemService(Context.BLUETOOTH_SERVICE);
 
         List<BluetoothDevice> connectedDevices = bluetoothManager.getConnectedDevices(BluetoothProfile.GATT);
 
-        for (BluetoothDevice device : connectedDevices) {
-            callback(device, -1, null);
+        if (connectedDevices != null) {
+            for (BluetoothDevice device : connectedDevices) {
+                callback(device, -1, null);
+            }
         }
-
     }
 
     public void stopLeScan() {
+
+        mHandler.removeCallbacksAndMessages(null);
 
         BluetoothAdapter defaultAdapter = BluetoothAdapter.getDefaultAdapter();
 
@@ -171,8 +214,7 @@ public class BleScanner {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             if (mScanCallback != null) {
                 BluetoothLeScanner bluetoothLeScanner = defaultAdapter.getBluetoothLeScanner();
-                if (bluetoothLeScanner != null)
-                    bluetoothLeScanner.stopScan(mScanCallback);
+                bluetoothLeScanner.stopScan(mScanCallback);
                 mScanCallback = null;
             }
         } else {

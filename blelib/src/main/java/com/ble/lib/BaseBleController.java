@@ -32,11 +32,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class BaseBleController {
     private static final String TAG = "BaseBleController";
 
-    public final static int SCAN_PERIOD = 10000;
     public final static int CONNECT_TIMEOUT = 20000;
 
     private static final UUID CLIENT_CHARACTERISTIC_CONFIG_DESCRIPTOR_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
-
 
     protected BluetoothGattCharacteristic mWrite;
     protected BluetoothGatt mBluetoothGatt;
@@ -49,10 +47,7 @@ public abstract class BaseBleController {
 
 
     private Context mAppContext;
-    private final AtomicBoolean mFoundDevice = new AtomicBoolean(false);
-
     private BluetoothDevice mDevice;
-
 
     private final Semaphore mSemaphore = new Semaphore(1);
     private final AtomicBoolean mErrorCommitted = new AtomicBoolean(true);
@@ -62,7 +57,6 @@ public abstract class BaseBleController {
     private BleRssiCallback mRssiCallback;
 
     private AtomicBoolean isConnecting = new AtomicBoolean(false);
-
 
     private LocalBroadcastManager mLocalBroadcastManager;
 
@@ -80,18 +74,9 @@ public abstract class BaseBleController {
     private Runnable mConnectTimeout = new Runnable() {
         @Override
         public void run() {
+            Log.i(TAG, "run() called mConnectTimeout");
             disconnect();
             onConnectionError(ERROR_TIMEOUT);
-        }
-    };
-
-
-    private Runnable mScanTimeOut = new Runnable() {
-        @Override
-        public void run() {
-            mAdapter.stopLeScan(mScanCallback);
-
-            connectAfterScanTimeout();
         }
     };
 
@@ -111,19 +96,17 @@ public abstract class BaseBleController {
         setBleState(STATE.CONNECTING);
 
         Log.d(TAG, "connectToDevice " + mState);
+
         mTimeStamp = System.currentTimeMillis();
 
         mHandler.postDelayed(mConnectTimeout, CONNECT_TIMEOUT);
-
 
         if (mBluetoothGatt != null)
             close();
 
         int mErrorCode = 0;
 
-
         Log.d(TAG, "connect to " + mAddress);
-
 
         if (TextUtils.isEmpty(mAddress)) {
             mErrorCode = ERROR_ADDRESS_IS_EMPTY;
@@ -131,18 +114,17 @@ public abstract class BaseBleController {
             return;
         }
 
-
         BluetoothManager bm = (BluetoothManager) mAppContext.getSystemService(Context.BLUETOOTH_SERVICE);
 
 
         BluetoothDevice device = getDeviceConnected(bm);
+
         if (device != null) {
             initGatt(device);
-
             Log.i(TAG, "connectToDevice: device is connected before connected");
             return;
         } else {
-            Log.i(TAG, "connectToDevice: device is not connected , start scan to discover device");
+            Log.i(TAG, "connectToDevice: device is not connected , start connect device");
         }
 
         if (mAdapter == null) {
@@ -157,14 +139,7 @@ public abstract class BaseBleController {
         if (mErrorCode != 0) {
             onConnectionError(mErrorCode);
         } else {
-            mHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    mFoundDevice.set(false);
-                    mAdapter.startLeScan(mScanCallback);
-                }
-            });
-            mHandler.postDelayed(mScanTimeOut, SCAN_PERIOD);
+            connectDirectly();
         }
     }
 
@@ -205,26 +180,6 @@ public abstract class BaseBleController {
         return null;
     }
 
-
-    BluetoothAdapter.LeScanCallback mScanCallback = new BluetoothAdapter.LeScanCallback() {
-        @Override
-        public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
-            Log.d(TAG, "onLeScan device:" + device.getAddress());
-
-            if (TextUtils.equals(device.getAddress(), mAddress) && !mFoundDevice.get()) {
-                if (!mFoundDevice.getAndSet(true)) {
-                    Log.d(TAG, "onLeScan Find my device Stamp:" + (System.currentTimeMillis() - mTimeStamp));
-                    mHandler.removeCallbacks(mScanTimeOut);
-
-                    mAdapter.stopLeScan(mScanCallback);
-
-                    initGatt(device);
-                }
-            }
-        }
-    };
-
-
     public synchronized void connectTo(String address, BLEInitCallback mInitCallback) {
         mTimeStamp = System.currentTimeMillis();
 
@@ -235,7 +190,8 @@ public abstract class BaseBleController {
             if (mState == STATE.CONNECTED) {
                 onInitCallbackSuccess();
             } else if (mState == STATE.CONNECTING) {
-
+                //已经正在连接 忽略即可
+                Log.e(TAG, "connectTo: 已经在连接");
             } else {
                 connectToDevice();
             }
@@ -247,9 +203,7 @@ public abstract class BaseBleController {
             connectToDevice();
         }
 
-
     }
-
 
     public synchronized boolean reconnect(BLEInitCallback initCallback) {
         Log.d(TAG, "reconnect() called with: " + "initCallback = [" + initCallback + "] state = [" + mState + "]");
@@ -262,10 +216,8 @@ public abstract class BaseBleController {
             }
         }
 
-
         connectToDevice();
         return true;
-
     }
 
     private void initGatt(BluetoothDevice device) {
@@ -288,12 +240,12 @@ public abstract class BaseBleController {
         }, 1600);
     }
 
-    private void connectAfterScanTimeout() {
+    private void connectDirectly() {
 
         mHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                Log.d(TAG, "connectAfterScanTimeout ");
+                Log.d(TAG, "connectDirectly ");
                 mDevice = mAdapter.getRemoteDevice(mAddress);
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -302,7 +254,25 @@ public abstract class BaseBleController {
                     mBluetoothGatt = mDevice.connectGatt(mAppContext, mAutoConnect, mGattCallback);
                 }
             }
-        }, 1000);
+        }, 1600);
+    }
+
+    private void onConnectionError(final int error) {
+
+        mHandler.removeCallbacks(mConnectTimeout);
+
+        setBleState(STATE.CONNECTION_BREAK);
+
+        if (!mErrorCommitted.getAndSet(true))
+            getStateLock();
+
+        notifyWorkerConnectionError();
+
+        Log.e(TAG, "onConnectionError " + getErrorType(error));
+
+        onInitCallbackError(error);
+
+        isConnecting.set(false);
     }
 
     private void onInitCallbackError(final int error) {
@@ -324,39 +294,10 @@ public abstract class BaseBleController {
         });
     }
 
-    private void onConnectionError(final int error) {
-        mHandler.removeCallbacks(mConnectTimeout);
-        setBleState(STATE.CONNECTION_BREAK);
-
-        if (!mErrorCommitted.getAndSet(true))
-            getStateLock();
-
-
-        notifyWorkerConnectionError();
-
-        Log.e(TAG, "onConnectionError " + getErrorType(error));
-
-        onInitCallbackError(error);
-
-        isConnecting.set(false);
-    }
-
     /**
      * After using a given BLE device, the app must call this method to ensure resources are
      * released properly.
      */
-    private void close() {
-        BluetoothGatt gatt = mBluetoothGatt;
-
-        Log.d(TAG, "close close device");
-        if (gatt != null)
-            gatt.close();
-
-        mBluetoothGatt = null;
-        mWrite = null;
-    }
-
-
     private void getStateLock() {
         try {
             mSemaphore.acquire();
@@ -372,7 +313,6 @@ public abstract class BaseBleController {
         try {
             Log.d(TAG, "refresh() called");
             BluetoothGatt bluetoothGatt = mBluetoothGatt;
-            bluetoothGatt.readRemoteRssi();
             Method localMethod = bluetoothGatt.getClass().getMethod("refresh", new Class[0]);
             if (localMethod != null) {
                 boolean bool = ((Boolean) localMethod.invoke(bluetoothGatt, new Object[0])).booleanValue();
@@ -394,24 +334,32 @@ public abstract class BaseBleController {
      */
     public void disconnect() {
         mHandler.removeCallbacksAndMessages(null);
-        if (mAdapter != null) {
-            mAdapter.stopLeScan(mScanCallback);
-        }
 
         setBleState(STATE.DISCONNECTING);
 
         isConnecting.set(false);
 
-
         BluetoothGatt gatt = mBluetoothGatt;
-        if (mAdapter == null || gatt == null) {
-            Log.w(TAG, "BluetoothAdapter not initialized");
-            return;
+        Log.i(TAG, "disconnect: gatt = " + gatt + "， madapter = " + mAdapter);
+        if (gatt != null) {
+            gatt.disconnect();
         }
         Log.e(TAG, "disconnect bluetooth gatt mAddress = " + mAddress);
-        gatt.disconnect();
 
         refresh();
+
+        close();
+    }
+
+    private void close() {
+        BluetoothGatt gatt = mBluetoothGatt;
+
+        Log.i(TAG, "close device");
+        if (gatt != null)
+            gatt.close();
+
+        mBluetoothGatt = null;
+        mWrite = null;
     }
 
 
@@ -542,7 +490,6 @@ public abstract class BaseBleController {
 
         }
 
-
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt,
                                          BluetoothGattCharacteristic characteristic,
@@ -614,7 +561,6 @@ public abstract class BaseBleController {
 
         mSemaphore.release();
         mErrorCommitted.set(false);
-
 
         Log.d(TAG, "on connection established");
 

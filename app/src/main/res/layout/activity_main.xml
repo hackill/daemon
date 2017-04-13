@@ -34,6 +34,14 @@
         android:text="断开设备" />
 
 
+
+    <Button
+        android:id="@+id/btn_connect2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="30dp"
+        android:text="连接设备2" />
+
     <TextView
         android:id="@+id/tv_status"
         android:layout_width="match_parent"
