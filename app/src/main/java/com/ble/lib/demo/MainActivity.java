@@ -42,7 +42,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private static final String TAG = "MainActivity";
 
-    private String mCurMac = "C3:0A:09:97:BD:CD";
+//    private String mCurMac = "C3:0A:09:97:BD:CD";
+    private String mCurMac = "00:00:00:00:00:01";
     private TextView mMacTextView, mStatusTextView;
 
     private BleManager mBleManager;
@@ -154,11 +155,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mBleManager.connect(mCurMac, new BLEInitCallback() {
             @Override
             public void onSuccess() {
+                Log.d(TAG, "onSuccess() called");
 
             }
 
             @Override
             public boolean onFailure(int error) {
+
+                Log.e(TAG, "onFailure: "+ error);
+
                 return false;
             }
         });

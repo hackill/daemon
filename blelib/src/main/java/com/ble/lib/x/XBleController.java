@@ -37,20 +37,21 @@ public class XBleController extends BaseBleController {
 
     @Override
     protected UUID getNotifyCharacteristicUUID() {
-//        return UUID.fromString("0003cbb1-0000-1000-8000-00805f9b0131");
-        return NOTIFY_CHARACTERISTIC;
+        return UUID.fromString("0003cbb1-0000-1000-8000-00805f9b0131");
+//        return NOTIFY_CHARACTERISTIC;
     }
 
     @Override
     protected UUID getWriteCharacteristicUUID() {
-//        return UUID.fromString("0003cbbb-0000-1000-8000-00805f9b0131");
-        return WRITE_CHARACTERISTIC;
+        return UUID.fromString("0003cbb1-0000-1000-8000-00805f9b0131");
+//        return WRITE_CHARACTERISTIC;
     }
 
     @Override
     protected UUID getServiceUUID() {
-//        return UUID.fromString("0003cbbb-0000-1000-8000-00805f9b0131");
-        return UUID_SERVICE;
+
+        return UUID.fromString("0003cbbb-0000-1000-8000-00805f9b0131");
+//        return UUID_SERVICE;
     }
 
     @Override

@@ -259,10 +259,13 @@ public abstract class BaseBleController {
 
     private void onConnectionError(final int error) {
 
+        Log.d(TAG, "onConnectionError() called with: error = [" + error + "]");
+
         mHandler.removeCallbacks(mConnectTimeout);
 
         setBleState(STATE.CONNECTION_BREAK);
 
+        Log.i(TAG, "onConnectionError: mErrorCommitted = " + mErrorCommitted.get());
         if (!mErrorCommitted.getAndSet(true))
             getStateLock();
 
@@ -424,9 +427,17 @@ public abstract class BaseBleController {
         }
     }
 
+    int i = 0;
+
     private final BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
         @Override
         public void onConnectionStateChange(final BluetoothGatt gatt, int status, int newState) {
+            i++;
+            if (i % 3 == 0) {
+                status = 133;
+                newState = 0;
+                mErrorCommitted.set(false);
+            }
             Log.i(TAG, "onConnectionStateChange() called with: status = [" + status + "], newState = [" + newState + "]");
 
             if (gatt == null) {
@@ -452,7 +463,10 @@ public abstract class BaseBleController {
                 Log.e(TAG, "onConnectionStateChange() called with: status = [" + status + "(" + GattError.parseConnectionError(status) + ")], newState = [" + newState + "]");
                 if (isConnecting.get()) {
                     disconnect();
+                } else {
+                    close();
                 }
+                mErrorCommitted.set(true);
                 onConnectionError(ERROR_BLUETOOTH_CONNECTION_BREAK);
             } else {
                 Log.i(TAG, "onConnectionStateChange() called with: status = [" + status + "(" + GattError.parseConnectionError(status) + ")], newState = [" + newState + "]");
@@ -683,7 +697,6 @@ public abstract class BaseBleController {
         }
         return result;
     }
-
 
     protected void setBleState(STATE state) {
         if (mState != state) {
