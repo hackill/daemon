@@ -22,7 +22,8 @@ public class XBleController extends BaseBleController {
     private static final String TAG = "XBleController";
 
     public final static UUID NOTIFY_CHARACTERISTIC = UUID.fromString("6e400003-b5a3-f393-e0a9-e50e24dcca1e");
-    public final static UUID WRITE_CHARACTERISTIC = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca1e");
+    public final static UUID WRITE_CHARACTERISTIC = UUID.fromString("0003cbb1-0000-1000-8000-00805f9b0131");
+//    public final static UUID WRITE_CHARACTERISTIC = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca1e");
     private final static UUID UUID_SERVICE = UUID.fromString("6e400001-b5a3-f393-e0a9-e50e24dcca1e");
 
     private XWorkerThread mWorkerThread;

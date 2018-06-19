@@ -23,11 +23,8 @@ public class DaemonService extends JobService {
                 @Override
                 public boolean handleMessage(Message msg) {
                     Log.i(TAG, "handleMessage: ...");
-
                     checkServices(DaemonService.this);
-
                     jobFinished((JobParameters) msg.obj, false);
-
                     return true;
                 }
             });
@@ -48,4 +45,6 @@ public class DaemonService extends JobService {
 
         return false;
     }
+
+
 }

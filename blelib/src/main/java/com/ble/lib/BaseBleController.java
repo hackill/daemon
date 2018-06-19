@@ -237,7 +237,7 @@ public abstract class BaseBleController {
                     mBluetoothGatt = mDevice.connectGatt(mAppContext, mAutoConnect, mGattCallback);
                 }
             }
-        }, 1600);
+        }, 100);
     }
 
     private void connectDirectly() {
@@ -254,7 +254,7 @@ public abstract class BaseBleController {
                     mBluetoothGatt = mDevice.connectGatt(mAppContext, mAutoConnect, mGattCallback);
                 }
             }
-        }, 1600);
+        }, 100);
     }
 
     private void onConnectionError(final int error) {
@@ -351,7 +351,7 @@ public abstract class BaseBleController {
 
         refresh();
 
-        close();
+//        close();
     }
 
     private void close() {
@@ -427,23 +427,27 @@ public abstract class BaseBleController {
         }
     }
 
-    int i = 0;
 
     private final BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
         @Override
         public void onConnectionStateChange(final BluetoothGatt gatt, int status, int newState) {
-            i++;
-            if (i % 3 == 0) {
-                status = 133;
-                newState = 0;
-                mErrorCommitted.set(false);
-            }
+//            i++;
+//            if (i % 3 == 0) {
+//                status = 133;
+//                newState = 0;
+//                mErrorCommitted.set(false);
+//            }
             Log.i(TAG, "onConnectionStateChange() called with: status = [" + status + "], newState = [" + newState + "]");
 
             if (gatt == null) {
                 disconnect();
                 onConnectionError(ERROR_BLUETOOTH_CONNECTION_BREAK);
                 return;
+            }
+
+
+            if(status == 0x85){
+//                reconnect();
             }
 
             if (newState == BluetoothGatt.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
@@ -461,11 +465,6 @@ public abstract class BaseBleController {
                 }, 1000);
             } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
                 Log.e(TAG, "onConnectionStateChange() called with: status = [" + status + "(" + GattError.parseConnectionError(status) + ")], newState = [" + newState + "]");
-                if (isConnecting.get()) {
-                    disconnect();
-                } else {
-                    close();
-                }
                 mErrorCommitted.set(true);
                 onConnectionError(ERROR_BLUETOOTH_CONNECTION_BREAK);
             } else {

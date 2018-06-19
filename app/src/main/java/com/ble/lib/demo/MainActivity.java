@@ -8,6 +8,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
@@ -21,6 +23,7 @@ import com.ble.lib.BLEScanInitCallback;
 import com.ble.lib.BleManager;
 import com.ble.lib.GattState;
 import com.ble.lib.demo.daemon.DaemonService;
+import com.ble.lib.utils.ParserUtils;
 import com.ble.lib.x.BongHexUtils;
 import com.ble.lib.x.BongUtil;
 import com.ble.lib.x.XBleManager;
@@ -34,6 +37,7 @@ import com.ble.lib.x.request.XWriteRequest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Timer;
 import java.util.concurrent.TimeUnit;
 
 
@@ -42,8 +46,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private static final String TAG = "MainActivity";
 
-//    private String mCurMac = "C3:0A:09:97:BD:CD";
-    private String mCurMac = "00:00:00:00:00:01";
+    //    private String mCurMac = "C3:0A:09:97:BD:CD";
+    private String mCurMac = "00:00:00:00:06:08";
     private TextView mMacTextView, mStatusTextView;
 
     private BleManager mBleManager;
@@ -65,11 +69,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         findViewById(R.id.btn_start_daemon).setOnClickListener(this);
         findViewById(R.id.btn_stop_daemon).setOnClickListener(this);
 
+
+        findViewById(R.id.xlock).setOnClickListener(this);
         mMacTextView.setText("当前设备：" + mCurMac);
 
         LocalBroadcastManager.getInstance(this).registerReceiver(mBleStateReceiver, new IntentFilter(GattState.BLE_STATE_CHANGE));
 
     }
+
 
     @Override
     public void onClick(View v) {
@@ -82,6 +89,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 break;
             case R.id.btn_connect:
                 if (!TextUtils.isEmpty(mCurMac)) {
+
                     connect();
                 } else {
                     showToast("先选择设备");
@@ -104,12 +112,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
             case R.id.btn_cmd:
 //                cmdDemo();
+                openCmd();
                 break;
             case R.id.btn_start_daemon:
                 startDaemon();
                 break;
             case R.id.btn_stop_daemon:
                 stopDaemon();
+                break;
+            case R.id.xlock:
+                xLock();
                 break;
         }
     }
@@ -125,6 +137,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             mStatusTextView.setText("连接状态：" + state);
             if (TextUtils.equals(state, "CONNECTED")) {
                 showToast("连接成功");
+                openCmd();
+            } else if (TextUtils.equals(state, "CONNECTION_BREAK")) {
+                Log.i(TAG, "onReceive: reconnect...");
+                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.i(TAG, "run: ..go");
+                        connect();
+                    }
+                }, 1000);
             }
         }
     };
@@ -156,13 +178,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             @Override
             public void onSuccess() {
                 Log.d(TAG, "onSuccess() called");
-
             }
 
             @Override
             public boolean onFailure(int error) {
 
-                Log.e(TAG, "onFailure: "+ error);
+                Log.e(TAG, "onFailure: " + error);
 
                 return false;
             }
@@ -170,6 +191,104 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     }
 
+    private void openCmd() {
+
+        String cmd = "818831383836383839303338360000000000";
+        byte[] unlockCmd = BongUtil.hexStringToBytes(cmd);
+
+        if (mBleManager != null) {
+            mBleManager.addRequest(new XPerReadRequest(unlockCmd, new XPerReadResponse() {
+                @Override
+                public void onReceive(byte[] rsp) {
+                    Log.i(TAG, "onReceive: ... " + ParserUtils.parse(rsp));
+                    openCmd2();//disconnect();
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    Log.e(TAG, "onError: ", e);
+                }
+
+                @Override
+                public void onCommandSuccess() {
+                    Log.d(TAG, "onCommandSuccess() called");
+                }
+            }));
+        }
+    }
+
+
+    private void openCmd2() {
+
+        String cmd = "8190";
+        byte[] unlockCmd = BongUtil.hexStringToBytes(cmd);
+
+        if (mBleManager != null) {
+            mBleManager.addRequest(new XPerReadRequest(unlockCmd, new XPerReadResponse() {
+                @Override
+                public void onReceive(byte[] rsp) {
+                    Log.i(TAG, "onReceive: ... " + ParserUtils.parse(rsp));
+//                    disconnect();
+                }
+
+                @Override
+                public void onError(Exception e) {
+                    Log.e(TAG, "onError: ", e);
+                }
+
+                @Override
+                public void onCommandSuccess() {
+                    Log.d(TAG, "onCommandSuccess() called");
+                }
+            }));
+        }
+    }
+
+    private void xLock() {
+        /**
+         * bleManager最好使用单例模式
+         */
+        if (mBleManager == null)
+            mBleManager = new XBleManager(this.getApplication());
+
+        mBleManager.connect(mCurMac, new BLEInitCallback() {
+            @Override
+            public void onSuccess() {
+                Log.d(TAG, "onSuccess() called");
+                //
+                String cmd = "818831383836383839303338360000000000";
+                byte[] unlockCmd = BongUtil.hexStringToBytes(cmd);
+
+                if (mBleManager != null) {
+                    mBleManager.addRequest(new XPerReadRequest(unlockCmd, new XPerReadResponse() {
+                        @Override
+                        public void onReceive(byte[] rsp) {
+                            Log.i(TAG, "onReceive: ... " + ParserUtils.parse(rsp));
+                            disconnect();
+                        }
+
+                        @Override
+                        public void onError(Exception e) {
+                            Log.e(TAG, "onError: ", e);
+                        }
+
+                        @Override
+                        public void onCommandSuccess() {
+                            Log.d(TAG, "onCommandSuccess() called");
+                        }
+                    }));
+                }
+            }
+
+            @Override
+            public boolean onFailure(int error) {
+
+                Log.e(TAG, "onFailure: " + error);
+
+                return false;
+            }
+        });
+    }
 
 
     private void connect2() {
@@ -181,9 +300,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (mBleManager == null)
             mBleManager = new XBleManager(this.getApplication());
 
-        
-        List<String> addressList = new ArrayList<>(Arrays.asList("C3:0A:09:97:BD:CD","C3:0A:09:97:BD:CD"));
-        
+
+        List<String> addressList = new ArrayList<>(Arrays.asList("C3:0A:09:97:BD:CD", "C3:0A:09:97:BD:CD"));
+
         mBleManager.connect(addressList, new BLEScanInitCallback() {
 
             @Override
@@ -352,10 +471,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         if (!hasJob) {
             JobInfo.Builder builder = new JobInfo.Builder(DaemonService.JOB_ID, new ComponentName(getPackageName(), DaemonService.class.getName()));
-            long l = TimeUnit.SECONDS.toMillis(5);
+            long l = TimeUnit.SECONDS.toMillis(3);
             // 5秒钟检查一次
-            builder.setPeriodic(l);
-            builder.setPersisted(false);
+            builder.setPeriodic(3000);
+//            builder.setPersisted(false);
 
             int schedule = jobScheduler.schedule(builder.build());
 

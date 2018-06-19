@@ -48,7 +48,7 @@ public class SelectActivity extends AppCompatActivity {
         initView();
 
         mBleScanner = new BleScanner(this.getApplicationContext());
-//        mBleScanner.filter("bong3HR");
+        mBleScanner.filter("VENZ-ECHO");
 
     }
 

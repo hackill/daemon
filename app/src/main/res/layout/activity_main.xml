@@ -11,6 +11,14 @@
         android:layout_height="wrap_content"
         android:text="选择设备" />
 
+
+    <Button
+        android:id="@+id/xlock"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="开锁" />
+
+
     <TextView
         android:id="@+id/tv_mac"
         android:layout_width="match_parent"
@@ -24,6 +32,7 @@
         android:id="@+id/btn_connect"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:visibility="gone"
         android:layout_marginTop="30dp"
         android:text="连接设备" />
 
@@ -39,6 +48,7 @@
         android:id="@+id/btn_connect2"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:visibility="gone"
         android:layout_marginTop="30dp"
         android:text="连接设备2" />
 
@@ -56,8 +66,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="30dp"
-        android:text="执行命令（需要看代码+log）" />
-
+        android:text="开锁" />
 
     <Button
         android:id="@+id/btn_start_daemon"
