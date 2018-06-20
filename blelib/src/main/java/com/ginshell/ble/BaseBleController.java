@@ -20,6 +20,7 @@ import android.util.Log;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Semaphore;
@@ -30,41 +31,207 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * *Created by rqg on 5/26/16.
  */
 public abstract class BaseBleController {
-    private static final String TAG = "BaseBleController";
-
     public final static int SCAN_PERIOD = 4000;
     public final static int CONNECT_TIMEOUT = 20000;
-
+    public final static int ERROR_FOUND_DFU_DEVICE = -6;
+    public final static int ERROR_BLUETOOTH_INIT_FAILURE = -5;
+    public final static int ERROR_BLUETOOTH_DEVICE_PROPERTY_MISS = -4;
+    public final static int ERROR_ADDRESS_IS_EMPTY = -3;
+    public final static int ERROR_BLUETOOTH_CONNECTION_BREAK = -2;
+    public final static int ERROR_EXECUTE_FAILURE = -1;
+    public final static int ERROR_GET_BLUETOOTH_ADAPTER_FAILURE = 1;
+    public final static int ERROR_ADDRESS_ILLEGAL = 2;
+    public final static int ERROR_GET_BLUETOOTH_GATT_FAILURE = 3;
+    public final static int ERROR_TIMEOUT = 4;
+    public final static int ERROR_COMMAND_INVALID = 5;
+    public final static int ERROR_BLUETOOTH_NOT_OPEN = 6;
+    public final static int ERROR_BLUETOOTH_SERVICE_NOT_FOUND = 7;
+    public final static int ERROR_BLUETOOTH_SERVICE_UNKNOW = 8;
+    private static final String TAG = "BaseBleController";
     private static final UUID CLIENT_CHARACTERISTIC_CONFIG_DESCRIPTOR_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
-
-
+    private static long mTimeStamp = 0;
+    private final List<BLEInitCallback> mInitCallbackList = new ArrayList<>();
+    private final AtomicBoolean mFoundDevice = new AtomicBoolean(false);
+    private final Semaphore mSemaphore = new Semaphore(1);
     protected BluetoothGattCharacteristic mWrite;
     protected BluetoothGatt mBluetoothGatt;
+    protected volatile STATE mState;
+    protected Context mAppContext;
+    protected int mNotifyMoreFlag = 0;
     private String mAddress;
     private BluetoothAdapter mAdapter = null;
-    private final List<BLEInitCallback> mInitCallbackList = new ArrayList<>();
     private Handler mHandler;
-    protected volatile STATE mState;
     private boolean mAutoConnect = false;
-
-
-    protected Context mAppContext;
-    private final AtomicBoolean mFoundDevice = new AtomicBoolean(false);
-
     private BluetoothDevice mDevice;
-
-
-    private final Semaphore mSemaphore = new Semaphore(1);
-
-    private static long mTimeStamp = 0;
-
     private BleRssiCallback mRssiCallback;
-
     private AtomicBoolean isConnecting = new AtomicBoolean(false);
-
     private int closeWaitingTime = 0;
-    protected List<BluetoothGattService> mGattServices;
-    protected int mNotifyMoreFlag = 0;
+    private Runnable mConnectTimeout = new Runnable() {
+        @Override
+        public void run() {
+            disconnect();
+            onConnectionError(ERROR_TIMEOUT);
+        }
+    };
+    private Runnable mScanTimeOut = new Runnable() {
+        @Override
+        public void run() {
+            mAdapter.stopLeScan(mScanCallback);
+            connectAfterScanTimeout();
+        }
+    };
+    BluetoothAdapter.LeScanCallback mScanCallback = new BluetoothAdapter.LeScanCallback() {
+        @Override
+        public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
+            Log.d(TAG, "onLeScan device:" + device.getAddress());
+
+            if (TextUtils.equals(device.getAddress(), mAddress) && !mFoundDevice.get()) {
+                if (!mFoundDevice.getAndSet(true)) {
+                    Log.d(TAG, "onLeScan Find my device Stamp:" + (System.currentTimeMillis() - mTimeStamp));
+                    mHandler.removeCallbacks(mScanTimeOut);
+
+                    mAdapter.stopLeScan(mScanCallback);
+
+                    initGatt(device);
+                }
+            }
+        }
+    };
+    private final BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
+        @Override
+        public void onConnectionStateChange(final BluetoothGatt gatt, int status, int newState) {
+            Log.i(TAG, "onConnectionStateChange() called with: status = [" + status + "], newState = [" + newState + "]");
+            if (newState == BluetoothGatt.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
+
+                if (mState != STATE.CONNECTING) {
+                    return;
+                }
+
+                Log.d(TAG, "connected timeStamp:" + (System.currentTimeMillis() - mTimeStamp));
+                mHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.d(TAG, "gatt.discoverServices()");
+                        gatt.discoverServices();
+                    }
+                }, 600);
+            } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
+
+                Log.e(TAG, "onConnectionStateChange() called with: status = [" + status + "(" + GattError.parseConnectionError(status) + ")], newState = [" + newState + "]");
+
+                setBleState(STATE.CONNECTION_BREAK);
+
+                if (gatt == null) {
+                    Log.e(TAG, "close gatt null");
+                    return;
+                }
+
+                onConnectionError(ERROR_BLUETOOTH_CONNECTION_BREAK);
+
+            } else {
+                Log.i(TAG, "onConnectionStateChange() called with: status = [" + status + "(" + GattError.parseConnectionError(status) + ")], newState = [" + newState + "]");
+                //其他情况全部close
+                onConnectionError(ERROR_BLUETOOTH_SERVICE_UNKNOW);
+            }
+
+
+        }
+
+        @Override
+        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            Log.d(TAG, "onServicesDiscovered() called with: status = [" + status + "]");
+            BluetoothGattCharacteristic notify = null;
+
+            if (status == BluetoothGatt.GATT_SUCCESS && mState == STATE.CONNECTING) {
+                List<BluetoothGattService> services = gatt.getServices();
+
+                for (int i = 0; i < services.size(); i++) {
+                    BluetoothGattService service = services.get(i);
+                    Log.i(TAG, "onServicesDiscovered: service UUID = " + service.getUuid().toString());
+
+
+                    Iterator<BluetoothGattCharacteristic> iterator = service.getCharacteristics().iterator();
+
+                    while (iterator.hasNext()) {
+                        Log.d(TAG, "onServicesDiscovered: uuid = " + iterator.next().getUuid().toString());
+                    }
+
+                    if (service.getUuid().compareTo(getServiceUUID()) == 0) {
+                        notify = service.getCharacteristic(getNotifyCharacteristicUUID());
+                        mWrite = service.getCharacteristic(getWriteCharacteristicUUID());
+                        break;
+                    }
+                }
+                if (notify == null || mWrite == null) {
+                    disconnect();
+                    onConnectionError(ERROR_BLUETOOTH_DEVICE_PROPERTY_MISS);
+                } else {
+                    if (!enableNotifications(notify)) {
+                        onConnectionError(ERROR_BLUETOOTH_INIT_FAILURE);
+                    } else {
+                        connectSuccess();
+                    }
+                }
+
+            }
+
+        }
+
+        @Override
+        public void onCharacteristicRead(BluetoothGatt gatt,
+                                         BluetoothGattCharacteristic characteristic,
+                                         int status) {
+            Log.d(TAG, "onCharacteristicRead() called with:  status = [" + status + "]");
+        }
+
+        @Override
+        public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+
+            handleCharacteristicChanged(gatt, characteristic);
+
+        }
+
+        @Override
+        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic
+                characteristic, int status) {
+            handleCharacteristicWrite(gatt, characteristic, status);
+        }
+
+        @Override
+        public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor,
+                                     int status) {
+            Log.d(TAG, "onDescriptorRead() called with:  status = [" + status + "]");
+        }
+
+        @Override
+        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor,
+                                      int status) {
+            Log.d(TAG, "onDescriptorWrite() called with:  status = [" + status + "]");
+            if (status == BluetoothGatt.GATT_SUCCESS && mState == STATE.CONNECTING) {
+                handlerDescriptorWrite();
+            }
+
+        }
+
+        @Override
+        public void onReliableWriteCompleted(BluetoothGatt gatt, int status) {
+            Log.d(TAG, "onReliableWriteCompleted() called with:  status = [" + status + "]");
+        }
+
+        @Override
+        public void onReadRemoteRssi(BluetoothGatt gatt, final int rssi, int status) {
+            Log.d(TAG, "onReadRemoteRssi() called with:  rssi = [" + rssi + "], status = [" + status + "]");
+            BleRssiCallback cb = mRssiCallback;
+            if (cb != null)
+                cb.onRssi(rssi);
+        }
+
+
+        @Override
+        public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+            Log.d(TAG, "onMtuChanged() called with:  mtu = [" + mtu + "], status = [" + status + "]");
+        }
+    };
 
     public BaseBleController(Context appContext) {
         mAppContext = appContext;
@@ -73,23 +240,40 @@ public abstract class BaseBleController {
         getStateLock();
     }
 
-
-    private Runnable mConnectTimeout = new Runnable() {
-        @Override
-        public void run() {
-            disconnect();
-            onConnectionError(ERROR_TIMEOUT);
+    public static String getErrorType(int type) {
+        switch (type) {
+            case ERROR_COMMAND_INVALID:
+                return "ERROR_COMMAND_INVALID";
+            case ERROR_BLUETOOTH_CONNECTION_BREAK:
+                return "蓝牙连接已断开";
+            case ERROR_EXECUTE_FAILURE:
+                return "蓝牙操作执行失败";
+            case ERROR_ADDRESS_IS_EMPTY:
+                return "设备地址为空";
+            case ERROR_GET_BLUETOOTH_ADAPTER_FAILURE:
+                return "获取蓝牙适配器失败";
+            case ERROR_ADDRESS_ILLEGAL:
+                return "蓝牙设备地址不合法";
+            case ERROR_GET_BLUETOOTH_GATT_FAILURE:
+                return "获取蓝牙描述文件失败";
+            case ERROR_TIMEOUT:
+                return "蓝牙操作超时，请重试";
+            case ERROR_BLUETOOTH_NOT_OPEN:
+                return "手机蓝牙未打开";
+            case ERROR_BLUETOOTH_SERVICE_NOT_FOUND:
+                return "蓝牙服务未发现";
+            case ERROR_BLUETOOTH_DEVICE_PROPERTY_MISS:
+                return "蓝牙设备属性缺失";
+            case ERROR_BLUETOOTH_SERVICE_UNKNOW:
+                return "未知错误";
+            case ERROR_BLUETOOTH_INIT_FAILURE:
+                return "ERROR_BLUETOOTH_INIT_FAILURE";
+            case ERROR_FOUND_DFU_DEVICE:
+                return "发现DFU设备";
+            default:
+                return "UNKNOWN " + type;
         }
-    };
-
-
-    private Runnable mScanTimeOut = new Runnable() {
-        @Override
-        public void run() {
-            mAdapter.stopLeScan(mScanCallback);
-            connectAfterScanTimeout();
-        }
-    };
+    }
 
     private synchronized void connectToDevice() {
         Log.d(TAG, "connectToDevice() called with: " + "");
@@ -228,26 +412,6 @@ public abstract class BaseBleController {
         return null;
     }
 
-
-    BluetoothAdapter.LeScanCallback mScanCallback = new BluetoothAdapter.LeScanCallback() {
-        @Override
-        public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
-            Log.d(TAG, "onLeScan device:" + device.getAddress());
-
-            if (TextUtils.equals(device.getAddress(), mAddress) && !mFoundDevice.get()) {
-                if (!mFoundDevice.getAndSet(true)) {
-                    Log.d(TAG, "onLeScan Find my device Stamp:" + (System.currentTimeMillis() - mTimeStamp));
-                    mHandler.removeCallbacks(mScanTimeOut);
-
-                    mAdapter.stopLeScan(mScanCallback);
-
-                    initGatt(device);
-                }
-            }
-        }
-    };
-
-
     public synchronized void connectTo(String address, BLEInitCallback mInitCallback) {
         mTimeStamp = System.currentTimeMillis();
 
@@ -270,7 +434,6 @@ public abstract class BaseBleController {
             connectToDevice();
         }
     }
-
 
     public synchronized boolean reconnect(BLEInitCallback initCallback) {
         Log.d(TAG, "reconnect() called with: " + "initCallback = [" + initCallback + "] state = [" + mState + "]");
@@ -373,7 +536,6 @@ public abstract class BaseBleController {
 
     }
 
-
     private void getStateLock() {
         try {
             mSemaphore.acquire();
@@ -417,190 +579,11 @@ public abstract class BaseBleController {
         gatt.disconnect();
     }
 
-
     protected abstract UUID getNotifyCharacteristicUUID();
 
     protected abstract UUID getWriteCharacteristicUUID();
 
     protected abstract UUID getServiceUUID();
-
-
-    public final static int ERROR_FOUND_DFU_DEVICE = -6;
-    public final static int ERROR_BLUETOOTH_INIT_FAILURE = -5;
-    public final static int ERROR_BLUETOOTH_DEVICE_PROPERTY_MISS = -4;
-    public final static int ERROR_ADDRESS_IS_EMPTY = -3;
-    public final static int ERROR_BLUETOOTH_CONNECTION_BREAK = -2;
-    public final static int ERROR_EXECUTE_FAILURE = -1;
-    public final static int ERROR_GET_BLUETOOTH_ADAPTER_FAILURE = 1;
-    public final static int ERROR_ADDRESS_ILLEGAL = 2;
-    public final static int ERROR_GET_BLUETOOTH_GATT_FAILURE = 3;
-    public final static int ERROR_TIMEOUT = 4;
-    public final static int ERROR_COMMAND_INVALID = 5;
-    public final static int ERROR_BLUETOOTH_NOT_OPEN = 6;
-    public final static int ERROR_BLUETOOTH_SERVICE_NOT_FOUND = 7;
-    public final static int ERROR_BLUETOOTH_SERVICE_UNKNOW = 8;
-
-
-    public static String getErrorType(int type) {
-        switch (type) {
-            case ERROR_COMMAND_INVALID:
-                return "ERROR_COMMAND_INVALID";
-            case ERROR_BLUETOOTH_CONNECTION_BREAK:
-                return "蓝牙连接已断开";
-            case ERROR_EXECUTE_FAILURE:
-                return "蓝牙操作执行失败";
-            case ERROR_ADDRESS_IS_EMPTY:
-                return "设备地址为空";
-            case ERROR_GET_BLUETOOTH_ADAPTER_FAILURE:
-                return "获取蓝牙适配器失败";
-            case ERROR_ADDRESS_ILLEGAL:
-                return "蓝牙设备地址不合法";
-            case ERROR_GET_BLUETOOTH_GATT_FAILURE:
-                return "获取蓝牙描述文件失败";
-            case ERROR_TIMEOUT:
-                return "蓝牙操作超时，请重试";
-            case ERROR_BLUETOOTH_NOT_OPEN:
-                return "手机蓝牙未打开";
-            case ERROR_BLUETOOTH_SERVICE_NOT_FOUND:
-                return "蓝牙服务未发现";
-            case ERROR_BLUETOOTH_DEVICE_PROPERTY_MISS:
-                return "蓝牙设备属性缺失";
-            case ERROR_BLUETOOTH_SERVICE_UNKNOW:
-                return "未知错误";
-            case ERROR_BLUETOOTH_INIT_FAILURE:
-                return "ERROR_BLUETOOTH_INIT_FAILURE";
-            case ERROR_FOUND_DFU_DEVICE:
-                return "发现DFU设备";
-            default:
-                return "UNKNOWN " + type;
-        }
-    }
-
-    private final BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
-        @Override
-        public void onConnectionStateChange(final BluetoothGatt gatt, int status, int newState) {
-            Log.i(TAG, "onConnectionStateChange() called with: status = [" + status + "], newState = [" + newState + "]");
-            if (newState == BluetoothGatt.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
-
-                if (mState != STATE.CONNECTING) {
-                    return;
-                }
-
-                Log.d(TAG, "connected timeStamp:" + (System.currentTimeMillis() - mTimeStamp));
-                mHandler.postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        Log.d(TAG, "gatt.discoverServices()");
-                        gatt.discoverServices();
-                    }
-                }, 600);
-            } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
-
-                Log.e(TAG, "onConnectionStateChange() called with: status = [" + status + "(" + GattError.parseConnectionError(status) + ")], newState = [" + newState + "]");
-
-                setBleState(STATE.CONNECTION_BREAK);
-
-                if (gatt == null) {
-                    Log.e(TAG, "close gatt null");
-                    return;
-                }
-
-                onConnectionError(ERROR_BLUETOOTH_CONNECTION_BREAK);
-
-            } else {
-                Log.i(TAG, "onConnectionStateChange() called with: status = [" + status + "(" + GattError.parseConnectionError(status) + ")], newState = [" + newState + "]");
-                //其他情况全部close
-                onConnectionError(ERROR_BLUETOOTH_SERVICE_UNKNOW);
-            }
-
-
-        }
-
-        @Override
-        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-            Log.d(TAG, "onServicesDiscovered() called with: status = [" + status + "]");
-            BluetoothGattCharacteristic notify = null;
-
-            if (status == BluetoothGatt.GATT_SUCCESS && mState == STATE.CONNECTING) {
-                List<BluetoothGattService> services = gatt.getServices();
-                mGattServices = services;
-                for (int i = 0; i < services.size(); i++) {
-                    BluetoothGattService service = services.get(i);
-                    if (service.getUuid().compareTo(getServiceUUID()) == 0) {
-                        notify = service.getCharacteristic(getNotifyCharacteristicUUID());
-                        mWrite = service.getCharacteristic(getWriteCharacteristicUUID());
-                        break;
-                    }
-                }
-                if (notify == null || mWrite == null) {
-                    disconnect();
-                    onConnectionError(ERROR_BLUETOOTH_DEVICE_PROPERTY_MISS);
-                } else {
-                    if (!enableNotifications(notify)) {
-                        onConnectionError(ERROR_BLUETOOTH_INIT_FAILURE);
-                    }
-                }
-
-            }
-
-        }
-
-        @Override
-        public void onCharacteristicRead(BluetoothGatt gatt,
-                                         BluetoothGattCharacteristic characteristic,
-                                         int status) {
-            Log.d(TAG, "onCharacteristicRead() called with:  status = [" + status + "]");
-        }
-
-        @Override
-        public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
-
-            handleCharacteristicChanged(gatt, characteristic);
-
-        }
-
-        @Override
-        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic
-                characteristic, int status) {
-            handleCharacteristicWrite(gatt, characteristic, status);
-        }
-
-        @Override
-        public void onDescriptorRead(BluetoothGatt gatt, BluetoothGattDescriptor descriptor,
-                                     int status) {
-            Log.d(TAG, "onDescriptorRead() called with:  status = [" + status + "]");
-        }
-
-        @Override
-        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor,
-                                      int status) {
-            Log.d(TAG, "onDescriptorWrite() called with:  status = [" + status + "]");
-            if (status == BluetoothGatt.GATT_SUCCESS && mState == STATE.CONNECTING) {
-                handlerDescriptorWrite();
-            }
-
-        }
-
-        @Override
-        public void onReliableWriteCompleted(BluetoothGatt gatt, int status) {
-            Log.d(TAG, "onReliableWriteCompleted() called with:  status = [" + status + "]");
-        }
-
-        @Override
-        public void onReadRemoteRssi(BluetoothGatt gatt, final int rssi, int status) {
-            Log.d(TAG, "onReadRemoteRssi() called with:  rssi = [" + rssi + "], status = [" + status + "]");
-            BleRssiCallback cb = mRssiCallback;
-            if (cb != null)
-                cb.onRssi(rssi);
-        }
-
-
-        @Override
-        public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
-            Log.d(TAG, "onMtuChanged() called with:  mtu = [" + mtu + "], status = [" + status + "]");
-        }
-    };
-
 
     protected abstract void notifyWorkerConnectionError(int error);
 
@@ -631,7 +614,7 @@ public abstract class BaseBleController {
      *
      * @return true is the mRequest has been sent, false if one of the arguments was <code>null</code> or the characteristic does not have the CCCD.
      */
-    protected final boolean enableNotifications(final BluetoothGattCharacteristic characteristic) {
+    protected boolean enableNotifications(final BluetoothGattCharacteristic characteristic) {
         final BluetoothGatt gatt = mBluetoothGatt;
         if (gatt == null || characteristic == null)
             return false;
@@ -669,14 +652,6 @@ public abstract class BaseBleController {
         });
     }
 
-    public enum STATE {
-        CONNECTED,
-        CONNECTING,
-        CONNECTION_BREAK,
-        DISCONNECTING
-    }
-
-
     public boolean readRssi(BleRssiCallback callback) {
         mRssiCallback = callback;
         BluetoothGatt gatt = mBluetoothGatt;
@@ -688,7 +663,6 @@ public abstract class BaseBleController {
     public boolean isConnected() {
         return mState == STATE.CONNECTED;
     }
-
 
     /**
      * 检查 当前蓝牙是否处于可用状态,如果不可用则阻塞调用者
@@ -725,7 +699,7 @@ public abstract class BaseBleController {
         boolean result = false;
         /*
          * There is a removeBond() method in BluetoothDevice class but for now it's hidden. We will call it using reflections.
-		 */
+         */
         try {
             final Method removeBond = device.getClass().getMethod("removeBond");
             if (removeBond != null) {
@@ -737,7 +711,6 @@ public abstract class BaseBleController {
         }
         return result;
     }
-
 
     private void setBleState(STATE state) {
         if (mState != state) {
@@ -764,6 +737,14 @@ public abstract class BaseBleController {
             LocalBroadcastManager.getInstance(mAppContext).sendBroadcast(intent);
         }
 
+    }
+
+
+    public enum STATE {
+        CONNECTED,
+        CONNECTING,
+        CONNECTION_BREAK,
+        DISCONNECTING
     }
 
     public interface OnNotifySuccessCallback {

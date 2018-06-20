@@ -18,10 +18,10 @@ import java.util.UUID;
 
 public class XBleController extends BaseBleController {
 
-    public final static UUID NOTIFY_CHARACTERISTIC = UUID.fromString("6e400003-b5a3-f393-e0a9-e50e24dcca1e");
-    public final static UUID WRITE_CHARACTERISTIC = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca1e");
+    public final static UUID NOTIFY_CHARACTERISTIC = UUID.fromString("00002a06-0000-1000-8000-00805f9b34fb");
+    public final static UUID WRITE_CHARACTERISTIC = UUID.fromString("00002a06-0000-1000-8000-00805f9b34fb");
     private static final String TAG = "XBleController";
-    private final static UUID BONG_SERVICE = UUID.fromString("6e400001-b5a3-f393-e0a9-e50e24dcca1e");
+    private final static UUID BONG_SERVICE = UUID.fromString("0000ffe1-0000-1000-8000-00805f9b34fb");
 
     private XWorkerThread mWorkerThread;
 
@@ -108,6 +108,11 @@ public class XBleController extends BaseBleController {
         connectSuccess();
     }
 
+
+    @Override
+    protected boolean enableNotifications(BluetoothGattCharacteristic characteristic) {
+        return true;
+    }
 
     /**
      * set to enable and set null to disable
