@@ -1,7 +1,7 @@
-package com.ble.lib.x;
+package com.ginshell.ble.x;
 
 /**
- * @author hackill
+ * @author rqg
  * @date 1/20/16.
  */
 public class XHasSportSyncException extends Exception {

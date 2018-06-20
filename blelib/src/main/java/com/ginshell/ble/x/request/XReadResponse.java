@@ -1,9 +1,9 @@
-package com.ble.lib.x.request;
+package com.ginshell.ble.x.request;
 
 import java.util.List;
 
 /**
- * @author hackill
+ * @author rqg
  * @date 1/18/16.
  */
 public interface XReadResponse extends XResponse {

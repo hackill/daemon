@@ -1,13 +1,11 @@
-package com.ble.lib.scan;
+package com.ginshell.ble.scan;
 
 import android.text.TextUtils;
 
-
 /**
- * hackill
- *
- * @date 31/03/2017
+ * * Created by rqg on 08/11/2016.
  */
+
 public class BleDevice {
     public String mac;
     public String name;

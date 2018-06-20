@@ -8,8 +8,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
@@ -18,26 +16,20 @@ import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.ble.lib.BLEInitCallback;
-import com.ble.lib.BLEScanInitCallback;
-import com.ble.lib.BleManager;
-import com.ble.lib.GattState;
 import com.ble.lib.demo.daemon.DaemonService;
-import com.ble.lib.utils.ParserUtils;
-import com.ble.lib.x.BongHexUtils;
-import com.ble.lib.x.BongUtil;
-import com.ble.lib.x.XBleManager;
-import com.ble.lib.x.request.XPerReadRequest;
-import com.ble.lib.x.request.XPerReadResponse;
-import com.ble.lib.x.request.XReadRequest;
-import com.ble.lib.x.request.XReadResponse;
-import com.ble.lib.x.request.XResponse;
-import com.ble.lib.x.request.XWriteRequest;
+import com.ginshell.ble.BLEInitCallback;
+import com.ginshell.ble.BleManager;
+import com.ginshell.ble.GattState;
+import com.ginshell.ble.x.BongUtil;
+import com.ginshell.ble.x.XBleManager;
+import com.ginshell.ble.x.request.XPerReadRequest;
+import com.ginshell.ble.x.request.XPerReadResponse;
+import com.ginshell.ble.x.request.XReadRequest;
+import com.ginshell.ble.x.request.XReadResponse;
+import com.ginshell.ble.x.request.XResponse;
+import com.ginshell.ble.x.request.XWriteRequest;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Timer;
 import java.util.concurrent.TimeUnit;
 
 
@@ -46,37 +38,47 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private static final String TAG = "MainActivity";
 
-    //    private String mCurMac = "C3:0A:09:97:BD:CD";
-    private String mCurMac = "00:00:00:00:06:08";
+    private String mCurMac = "";
     private TextView mMacTextView, mStatusTextView;
-
     private BleManager mBleManager;
+    /**
+     * 连接状态会以广播的形式通知出来
+     * 蓝牙连接state
+     */
+    private BroadcastReceiver mBleStateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String state = intent.getStringExtra("state");
+            mStatusTextView.setText("连接状态：" + state);
+            if (TextUtils.equals(state, "CONNECTED")) {
+                showToast("连接成功");
+            } else if (TextUtils.equals(state, "CONNECTION_BREAK")) {
+                Log.i(TAG, "onReceive: reconnect...");
+                showToast("连接失败~");
+            }
+        }
+    };
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-
         mMacTextView = (TextView) findViewById(R.id.tv_mac);
         mStatusTextView = (TextView) findViewById(R.id.tv_status);
 
         findViewById(R.id.btn_select).setOnClickListener(this);
         findViewById(R.id.btn_connect).setOnClickListener(this);
-        findViewById(R.id.btn_connect2).setOnClickListener(this);
         findViewById(R.id.btn_disconnect).setOnClickListener(this);
-        findViewById(R.id.btn_cmd).setOnClickListener(this);
         findViewById(R.id.btn_start_daemon).setOnClickListener(this);
         findViewById(R.id.btn_stop_daemon).setOnClickListener(this);
 
-
-        findViewById(R.id.xlock).setOnClickListener(this);
         mMacTextView.setText("当前设备：" + mCurMac);
 
         LocalBroadcastManager.getInstance(this).registerReceiver(mBleStateReceiver, new IntentFilter(GattState.BLE_STATE_CHANGE));
 
     }
-
 
     @Override
     public void onClick(View v) {
@@ -89,15 +91,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 break;
             case R.id.btn_connect:
                 if (!TextUtils.isEmpty(mCurMac)) {
-
                     connect();
-                } else {
-                    showToast("先选择设备");
-                }
-                break;
-            case R.id.btn_connect2:
-                if (!TextUtils.isEmpty(mCurMac)) {
-                    connect2();
                 } else {
                     showToast("先选择设备");
                 }
@@ -109,47 +103,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     showToast("先选择设备");
                 }
                 break;
-
-            case R.id.btn_cmd:
-//                cmdDemo();
-                openCmd();
-                break;
             case R.id.btn_start_daemon:
                 startDaemon();
                 break;
             case R.id.btn_stop_daemon:
                 stopDaemon();
                 break;
-            case R.id.xlock:
-                xLock();
-                break;
         }
     }
-
-    /**
-     * 连接状态会以广播的形式通知出来
-     * 蓝牙连接state
-     */
-    private BroadcastReceiver mBleStateReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String state = intent.getStringExtra("state");
-            mStatusTextView.setText("连接状态：" + state);
-            if (TextUtils.equals(state, "CONNECTED")) {
-                showToast("连接成功");
-                openCmd();
-            } else if (TextUtils.equals(state, "CONNECTION_BREAK")) {
-                Log.i(TAG, "onReceive: reconnect...");
-                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        Log.i(TAG, "run: ..go");
-                        connect();
-                    }
-                }, 1000);
-            }
-        }
-    };
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -164,10 +125,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
 
-
     private void connect() {
 
-
         /**
          * bleManager最好使用单例模式
          */
@@ -190,140 +149,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         });
 
     }
-
-    private void openCmd() {
-
-        String cmd = "818831383836383839303338360000000000";
-        byte[] unlockCmd = BongUtil.hexStringToBytes(cmd);
-
-        if (mBleManager != null) {
-            mBleManager.addRequest(new XPerReadRequest(unlockCmd, new XPerReadResponse() {
-                @Override
-                public void onReceive(byte[] rsp) {
-                    Log.i(TAG, "onReceive: ... " + ParserUtils.parse(rsp));
-                    openCmd2();//disconnect();
-                }
-
-                @Override
-                public void onError(Exception e) {
-                    Log.e(TAG, "onError: ", e);
-                }
-
-                @Override
-                public void onCommandSuccess() {
-                    Log.d(TAG, "onCommandSuccess() called");
-                }
-            }));
-        }
-    }
-
-
-    private void openCmd2() {
-
-        String cmd = "8190";
-        byte[] unlockCmd = BongUtil.hexStringToBytes(cmd);
-
-        if (mBleManager != null) {
-            mBleManager.addRequest(new XPerReadRequest(unlockCmd, new XPerReadResponse() {
-                @Override
-                public void onReceive(byte[] rsp) {
-                    Log.i(TAG, "onReceive: ... " + ParserUtils.parse(rsp));
-//                    disconnect();
-                }
-
-                @Override
-                public void onError(Exception e) {
-                    Log.e(TAG, "onError: ", e);
-                }
-
-                @Override
-                public void onCommandSuccess() {
-                    Log.d(TAG, "onCommandSuccess() called");
-                }
-            }));
-        }
-    }
-
-    private void xLock() {
-        /**
-         * bleManager最好使用单例模式
-         */
-        if (mBleManager == null)
-            mBleManager = new XBleManager(this.getApplication());
-
-        mBleManager.connect(mCurMac, new BLEInitCallback() {
-            @Override
-            public void onSuccess() {
-                Log.d(TAG, "onSuccess() called");
-                //
-                String cmd = "818831383836383839303338360000000000";
-                byte[] unlockCmd = BongUtil.hexStringToBytes(cmd);
-
-                if (mBleManager != null) {
-                    mBleManager.addRequest(new XPerReadRequest(unlockCmd, new XPerReadResponse() {
-                        @Override
-                        public void onReceive(byte[] rsp) {
-                            Log.i(TAG, "onReceive: ... " + ParserUtils.parse(rsp));
-                            disconnect();
-                        }
-
-                        @Override
-                        public void onError(Exception e) {
-                            Log.e(TAG, "onError: ", e);
-                        }
-
-                        @Override
-                        public void onCommandSuccess() {
-                            Log.d(TAG, "onCommandSuccess() called");
-                        }
-                    }));
-                }
-            }
-
-            @Override
-            public boolean onFailure(int error) {
-
-                Log.e(TAG, "onFailure: " + error);
-
-                return false;
-            }
-        });
-    }
-
-
-    private void connect2() {
-
-
-        /**
-         * bleManager最好使用单例模式
-         */
-        if (mBleManager == null)
-            mBleManager = new XBleManager(this.getApplication());
-
-
-        List<String> addressList = new ArrayList<>(Arrays.asList("C3:0A:09:97:BD:CD", "C3:0A:09:97:BD:CD"));
-
-        mBleManager.connect(addressList, new BLEScanInitCallback() {
-
-            @Override
-            public void onScanTimeOut() {
-                Log.i(TAG, "onScanTimeOut: .....");
-            }
-
-            @Override
-            public void onSuccess() {
-                Log.i(TAG, "onSuccess: ...");
-            }
-
-            @Override
-            public boolean onFailure(int error) {
-                Log.i(TAG, "onFailure: ....");
-                return false;
-            }
-        });
-
-    }
-
 
     private void disconnect() {
         if (mBleManager != null) {
@@ -420,12 +245,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     }
 
-
-    private static String getSyncDataCmd(long beginTime, long endTime) {
-        // 这里的规则是使用我们与硬件预定好的时间规则
-        return "2000000013" + BongHexUtils.getStrTimeForHex(beginTime) + BongHexUtils.getStrTimeForHex(endTime);
-    }
-
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -493,5 +312,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
 
     }
+
+
+
+    private static String getSyncDataCmd(long beginTime, long endTime) {
+        // 这里的规则是使用我们与硬件预定好的时间规则
+        return "2000000013" + BongUtil.getStrTimeForHex(beginTime) + BongUtil.getStrTimeForHex(endTime);
+    }
+
 
 }

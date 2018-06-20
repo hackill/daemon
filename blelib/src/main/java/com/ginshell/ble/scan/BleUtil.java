@@ -1,4 +1,4 @@
-package com.ble.lib.utils;
+package com.ginshell.ble.scan;
 
 import java.util.Arrays;
 
@@ -51,24 +51,6 @@ public class BleUtil {
             cbs = getTypeBytes(bytes, (byte) 0x09);
         }
         return cbs == null ? null : new String(cbs);
-    }
-
-
-    /**
-     * mac 地址+1
-     *
-     * @param mac
-     * @return
-     */
-    public static String addMacOne(String mac) {
-
-        String endStr = mac.substring(mac.length() - 2);
-        int a = Integer.parseInt(endStr, 16);
-
-        a++;
-        String tmp = String.format("%02X", a);
-
-        return mac.substring(0, mac.length() - 2) + tmp.substring(tmp.length() - 2);
     }
 
 }

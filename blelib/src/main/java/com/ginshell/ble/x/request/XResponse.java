@@ -1,7 +1,7 @@
-package com.ble.lib.x.request;
+package com.ginshell.ble.x.request;
 
 /**
- * @author hackill
+ * @author rqg
  * @date 1/18/16.
  */
 public interface XResponse {

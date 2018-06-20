@@ -7,7 +7,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-import com.ble.lib.scan.BleDevice;
+import com.ginshell.ble.scan.BleDevice;
 
 
 public class SelectAdapter extends RecyclerView.Adapter<SelectAdapter.BleViewHolder> {

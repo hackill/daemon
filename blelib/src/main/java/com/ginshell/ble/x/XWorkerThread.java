@@ -1,23 +1,24 @@
-package com.ble.lib.x;
+package com.ginshell.ble.x;
 
 import android.text.TextUtils;
 import android.util.Log;
 
-import com.ble.lib.BleConnectionException;
-import com.ble.lib.BleExecuteException;
-import com.ble.lib.BuildConfig;
-import com.ble.lib.utils.ParserUtils;
-import com.ble.lib.x.request.XPerReadRequest;
-import com.ble.lib.x.request.XReadRequest;
-import com.ble.lib.x.request.XRequest;
+import com.ginshell.ble.BleConnectionException;
+import com.ginshell.ble.BleExecuteException;
+import com.ginshell.ble.Debug;
+import com.ginshell.ble.ParserUtils;
+import com.ginshell.ble.x.request.XPerReadRequest;
+import com.ginshell.ble.x.request.XReadRequest;
+import com.ginshell.ble.x.request.XRequest;
 
 import java.util.Arrays;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+
 /**
- * @author hackill
+ * @author rqg
  * @date 1/18/16.
  */
 public class XWorkerThread extends Thread {
@@ -33,6 +34,7 @@ public class XWorkerThread extends Thread {
 
     private static final byte[] mSuccessBytes = new byte[]{0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73};
     private static final byte[] mEndBytes = new byte[]{0x65, 0x6E, 0x64};
+    private static final byte[] mSyncBytes = new byte[]{0x20, 0x00, 0x00, 0x00, 0x13};
 
     private boolean isLastCommandSuccess = false;
 
@@ -222,7 +224,7 @@ public class XWorkerThread extends Thread {
         Log.v(TAG, "receiveFrame " + ParserUtils.parse(frame));
         if (mFrameBuffer.remainingCapacity() == 0) {
             Log.e(TAG, "receiveFrame frame buffer full , clear buffer");
-            if (BuildConfig.DEBUG) {
+            if (Debug.DEBUG) {
 
                 while (mFrameBuffer.size() != 0) {
                     byte[] f = mFrameBuffer.poll();
@@ -243,11 +245,42 @@ public class XWorkerThread extends Thread {
     public boolean addRequest(XRequest request) {
         Log.d(TAG, "addRequest() called with: " + "request = [" + request + "], size = " + mRequestQueue.size());
         try {
+
+            if (request.isErrorHasSync()) {
+                // 检测之前有没有同步数据命令
+                for (XRequest r : mRequestQueue) {
+                    if (isSyncCommand(r.getCommand()[0])) {
+                        request.deliverError(new XHasSportSyncException("has sport sync before this mRequest"));
+                        return true;
+                    }
+                }
+                //检测当前是否是同步命令数据
+                XRequest r = mRequest;
+                if (r != null && isSyncCommand(r.getCommand()[0])) {
+                    request.deliverError(new XHasSportSyncException("has sport sync before this mRequest"));
+                    return true;
+                }
+            }
+
+
             return mRequestQueue.add(request);
         } catch (Exception e) {
             Log.e(TAG, "addRequest ", e);
             return false;
         }
+    }
+
+
+    private boolean isSyncCommand(byte[] command) {
+        if (command.length < mSyncBytes.length)
+            return false;
+        for (int i = 0; i < mSyncBytes.length; i++) {
+            if (command[i] != mSyncBytes[i]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -280,13 +313,17 @@ public class XWorkerThread extends Thread {
             }
 
             try {
-                mController.writeFrame(BongCoder.encodeStopOutput());
+                mController.writeFrame(encodeStopOutput());
             } catch (InterruptedException e) {
                 Log.e(TAG, "cancelAllRequest stop output failure", e);
             }
 
             Log.i(TAG, "cancelAllRequest cancel all out put request");
         }
+    }
+
+    public static byte[] encodeStopOutput() {
+        return BongUtil.hexStringToBytes("2100000020");
     }
 
 

@@ -12,9 +12,9 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
 
-import com.ble.lib.scan.BleDevice;
-import com.ble.lib.scan.BleScanCallback;
-import com.ble.lib.scan.BleScanner;
+import com.ginshell.ble.scan.BleDevice;
+import com.ginshell.ble.scan.BleScanCallback;
+import com.ginshell.ble.scan.BleScanner;
 
 import java.util.Arrays;
 import java.util.Collections;

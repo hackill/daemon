@@ -5,19 +5,6 @@
     android:orientation="vertical"
     android:padding="15dp">
 
-    <Button
-        android:id="@+id/btn_select"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="选择设备" />
-
-
-    <Button
-        android:id="@+id/xlock"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="开锁" />
-
 
     <TextView
         android:id="@+id/tv_mac"
@@ -27,12 +14,17 @@
         android:text="当前设备："
         android:textSize="14dp" />
 
+    <Button
+        android:id="@+id/btn_select"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="选择设备" />
+
 
     <Button
         android:id="@+id/btn_connect"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:visibility="gone"
         android:layout_marginTop="30dp"
         android:text="连接设备" />
 
@@ -41,16 +33,6 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="断开设备" />
-
-
-
-    <Button
-        android:id="@+id/btn_connect2"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        android:layout_marginTop="30dp"
-        android:text="连接设备2" />
 
     <TextView
         android:id="@+id/tv_status"
@@ -62,19 +44,11 @@
 
 
     <Button
-        android:id="@+id/btn_cmd"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="30dp"
-        android:text="开锁" />
-
-    <Button
         android:id="@+id/btn_start_daemon"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="30dp"
+        android:layout_marginTop="60dp"
         android:text="开始保活任务" />
-
 
     <Button
         android:id="@+id/btn_stop_daemon"
